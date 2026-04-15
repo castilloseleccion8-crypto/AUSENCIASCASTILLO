@@ -418,11 +418,12 @@ tarde_ausente_solo = (df_vista['MAÑANA'].str.upper().str.strip() == 'P') & (df_
 condicion_ausente = df_vista["SITUACION"].str.contains("AUSENTE", case=False, na=False)
 excluir_sabado_tarde = es_sabado & tarde_ausente_solo
 
-# Creamos el DF de ausentes aplicando la exclusión
-df_ausentes = df_vista[condicion_ausente & ~excluir_sabado_tarde].copy()
+# Filtro ampliado para que tome "AUSENTE" y también "MEDIO PRESENTE"
+condicion_presencia = df_vista["SITUACION"].str.contains("AUSENTE|MEDIO", case=False, na=False)
+
+df_ausentes = df_vista[condicion_presencia].copy()
 df_ausentes["_ESTADO"] = df_ausentes.apply(lambda r: estado_fila(r, gestiones), axis=1)
 df_ausentes["_KEY"]    = df_ausentes.apply(clave, axis=1)
-
 titulo_vista = "Vista Global — Todas las Sucursales" if es_rrhh else f"Sucursal: {sucursal_sel}"
 st.markdown(f"### {titulo_vista}")
 
