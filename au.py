@@ -498,34 +498,46 @@ else:
         plazo_str, dias = calcular_estado_plazo(str(row["FECHA"]))
 
         if est_actual == "RESUELTO":
-            css_class = "resuelto"
-            badge = f'<span class="badge-verde">✅ {gestion_actual.get("tipificacion","")}</span>'
+            border_color = "#10b981"
+            badge = (f'<span style="background:#d1fae5;color:#065f46;padding:3px 12px;'
+                     f'border-radius:20px;font-size:12px;font-weight:600;">'
+                     f'✅ {gestion_actual.get("tipificacion","")}</span>')
         elif plazo_str == "VENCIDO":
-            css_class = "vencido"
-            badge = '<span class="badge-rojo">🚨 VENCIDO (+48hs)</span>'
+            border_color = "#dc2626"
+            badge = ('<span style="background:#fee2e2;color:#991b1b;padding:3px 12px;'
+                     'border-radius:20px;font-size:12px;font-weight:600;">'
+                     '🚨 VENCIDO (+48hs)</span>')
         else:
-            css_class = "pendiente"
+            border_color = "#f59e0b"
             dias_txt = f"{dias} día(s)" if dias > 0 else "vence hoy"
-            badge = f'<span class="badge-amarillo">⏳ PENDIENTE — {dias_txt}</span>'
+            badge = (f'<span style="background:#fef3c7;color:#92400e;padding:3px 12px;'
+                     f'border-radius:20px;font-size:12px;font-weight:600;">'
+                     f'⏳ PENDIENTE — {dias_txt}</span>')
 
         lic_str = str(row.get("LICENCIA","")).strip()
-        lic_html = f'&nbsp;<span style="color:#888;font-size:12px;">Naaloo previo: {lic_str}</span>' if lic_str and lic_str != "nan" else ""
-        suc_html = f'&nbsp;<span style="color:#888;font-size:12px;">📍 {row["SUCURSAL"]}</span>' if es_rrhh else ""
+        lic_html = (f'<span style="color:#888;font-size:12px;">📄 Naaloo previo: {lic_str}</span>'
+                    if lic_str and lic_str not in ("nan", "") else "")
+        suc_html = (f'<span style="color:#888;font-size:12px;">📍 {row["SUCURSAL"]}</span>'
+                    if es_rrhh else "")
 
         st.markdown(f"""
-        <div class="card {css_class}">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <div>
-                    <strong style="font-size:15px;">👤 {str(row['NOMBRE']).strip()}</strong>
-                    &nbsp;<span style="color:#666;font-size:13px;">Leg. {row['LEGAJO']}</span>
+        <div style="background:white;padding:16px 20px;border-radius:10px;
+                    border-left:4px solid {border_color};margin-bottom:8px;
+                    box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <span style="font-size:15px;font-weight:600;color:#111;">
+                        👤 {str(row['NOMBRE']).strip()}
+                    </span>
+                    <span style="color:#666;font-size:13px;">Leg. {row['LEGAJO']}</span>
                     {suc_html}
                 </div>
                 <div>{badge}</div>
             </div>
-            <div style="display:flex;gap:16px;font-size:13px;color:#555;flex-wrap:wrap;">
-                <span>📅 <strong>{row['FECHA']}</strong></span>
-                <span>M: <strong>{row['MAÑANA']}</strong></span>
-                <span>T: <strong>{row['TARDE']}</strong></span>
+            <div style="display:flex;gap:20px;font-size:13px;color:#444;flex-wrap:wrap;align-items:center;">
+                <span>📅 <b>{row['FECHA']}</b></span>
+                <span>🌅 Mañana: <b>{row['MAÑANA']}</b></span>
+                <span>🌆 Tarde: <b>{row['TARDE']}</b></span>
                 {lic_html}
             </div>
         </div>
