@@ -8,37 +8,53 @@ import io
 
 st.set_page_config(page_title="Gestión de Ausencias", layout="wide", page_icon="📋")
 
-# ===================== ESTILOS =====================
 st.markdown("""
 <style>
 html, body, [class*="css"] { font-family: 'Segoe UI', sans-serif; }
 .stApp { background-color: #f0f2f5; }
-section[data-testid="stSidebar"] { background-color: #0f1f3d; }
-section[data-testid="stSidebar"] * { color: white !important; }
-.titulo { font-size: 34px; font-weight: 800; color: #0f1f3d; text-align: center; margin-bottom: 4px; }
-.subtitulo { font-size: 16px; color: #666; text-align: center; margin-bottom: 20px; }
-.card { background: white; padding: 18px 20px; border-radius: 12px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.07); margin-bottom: 10px;
-        border-left: 4px solid #e5e7eb; }
-.card.vencido  { border-left-color: #dc2626; }
-.card.pendiente{ border-left-color: #f59e0b; }
-.card.resuelto { border-left-color: #10b981; }
-.badge-rojo     { background:#fee2e2; color:#dc2626; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; }
-.badge-amarillo { background:#fef3c7; color:#d97706; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; }
-.badge-verde    { background:#d1fae5; color:#059669; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; }
-div.stButton > button { background-color:#0f1f3d; color:white; border-radius:8px;
-                        padding:8px 20px; border:none; font-weight:600; width:100%; }
-div.stButton > button:hover { background-color:#1e3a6e; }
-.metric-box { background:white; border-radius:10px; padding:14px;
-              text-align:center; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
-.metric-num   { font-size:30px; font-weight:800; }
-.metric-label { font-size:12px; color:#666; margin-top:3px; }
-div[data-testid="stFileUploader"] { border: 2px dashed #0f1f3d33;
-    border-radius: 10px; padding: 10px; background: white; }
+
+/* Sidebar oscuro SIN pisar el área principal */
+section[data-testid="stSidebar"] { background-color: #0f1f3d !important; }
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] div.stRadio > label,
+section[data-testid="stSidebar"] div.stSelectbox label,
+section[data-testid="stSidebar"] div.stTextInput label,
+section[data-testid="stSidebar"] .stMarkdown { color: white !important; }
+
+/* Inputs del sidebar con fondo oscuro */
+section[data-testid="stSidebar"] input { 
+    background-color: #1e3a6e !important; 
+    color: white !important; 
+    border-color: #3b5ea6 !important;
+}
+section[data-testid="stSidebar"] select { 
+    background-color: #1e3a6e !important; 
+    color: white !important;
+}
+section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+    background-color: #1e3a6e !important;
+    color: white !important;
+}
+
+/* Botones generales */
+div.stButton > button { 
+    background-color: #0f1f3d; color: white; border-radius: 8px;
+    padding: 8px 20px; border: none; font-weight: 600; width: 100%; 
+}
+div.stButton > button:hover { background-color: #1e3a6e; }
+
+/* Métricas */
+.metric-box { 
+    background: white; border-radius: 10px; padding: 14px;
+    text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06); 
+}
+.metric-num   { font-size: 30px; font-weight: 800; }
+.metric-label { font-size: 12px; color: #666; margin-top: 3px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ===================== CONSTANTES =====================
 TIPIFICACIONES = [
     "Tardanza / Cambio de horario",
     "Vacaciones",
@@ -52,21 +68,53 @@ NAALOO_OPTS = [
     "No aplica",
 ]
 PASSWORD_RRHH = "rrhh2026"
+HOJA_REPORTE   = "REPORTE"
+HOJA_GESTIONES = "GESTIONES"
+COLS_REPORTE = ["FECHA", "LEGAJO", "SUCURSAL", "NOMBRE", "MAÑANA", "TARDE", "SITUACION", "LICENCIA"]
+COLS_GESTIONES = ["KEY", "TIPIFICACION", "NAALOO", "OBSERVACIONES", "RESPONSABLE", "FECHA_GESTION", "SUCURSAL_ORIGEN"]
 
-# Nombres de las hojas dentro de la Google Sheet
-HOJA_REPORTE   = "REPORTE"    # datos del Excel que se sube
-HOJA_GESTIONES = "GESTIONES"  # tipificaciones guardadas
 
-# ===================== GOOGLE SHEETS =====================
+def render_card(nombre, legajo, fecha, manana, tarde, licencia, suc_label, border_color, badge_html):
+    """Renderiza una card de ausencia usando componentes nativos de Streamlit (sin HTML crudo)."""
+    color_map = {"#dc2626": "🚨", "#f59e0b": "⏳", "#10b981": "✅"}
+    
+    with st.container():
+        # Línea de color simulada con barra lateral usando columnas
+        col_borde, col_contenido = st.columns([0.015, 0.985])
+        with col_borde:
+            st.markdown(
+                f'<div style="background:{border_color};height:80px;border-radius:4px;"></div>',
+                unsafe_allow_html=True
+            )
+        with col_contenido:
+            c_nombre, c_badge = st.columns([3, 1])
+            with c_nombre:
+                suc_txt = f"  ·  📍 {suc_label}" if suc_label else ""
+                st.markdown(f"**👤 {nombre}** &nbsp; Leg. {legajo}{suc_txt}")
+            with c_badge:
+                st.markdown(
+                    f'<div style="text-align:right">{badge_html}</div>',
+                    unsafe_allow_html=True
+                )
+            lic_txt = f"&nbsp;&nbsp;📄 Naaloo previo: *{licencia}*" if licencia and licencia != "nan" else ""
+            st.markdown(
+                f"📅 **{fecha}** &nbsp;&nbsp; 🌅 Mañana: **{manana}** &nbsp;&nbsp; 🌆 Tarde: **{tarde}**{lic_txt}"
+            )
+        st.markdown('<hr style="margin:4px 0 12px 0;border:none;border-top:1px solid #e5e7eb;">', unsafe_allow_html=True)
+
+
+def badge_html(texto, bg, color):
+    return (f'<span style="background:{bg};color:{color};padding:3px 12px;'
+            f'border-radius:20px;font-size:12px;font-weight:600;">{texto}</span>')
+
+
 @st.cache_resource
 def get_client():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], scopes=scopes
-    )
+    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
     return gspread.authorize(creds)
 
 
@@ -76,27 +124,33 @@ def get_sheet(nombre_hoja):
     try:
         return sh.worksheet(nombre_hoja)
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet(title=nombre_hoja, rows=2000, cols=20)
-        return ws
+        return sh.add_worksheet(title=nombre_hoja, rows=2000, cols=20)
 
 
-# ---- REPORTE ----
-COLS_REPORTE = ["FECHA", "LEGAJO", "SUCURSAL", "NOMBRE", "MAÑANA", "TARDE", "SITUACION", "LICENCIA"]
-
-def cargar_reporte_desde_drive():
+@st.cache_data(ttl=60)
+def cargar_reporte():
     ws = get_sheet(HOJA_REPORTE)
     data = ws.get_all_records()
     if not data:
         return pd.DataFrame(columns=COLS_REPORTE)
-    df = pd.DataFrame(data)
-    df = df.fillna("")
-    return df
+    return pd.DataFrame(data).fillna("")
 
 
-def subir_reporte_a_drive(df: pd.DataFrame):
+@st.cache_data(ttl=30)
+def cargar_gestiones():
+    ws = get_sheet(HOJA_GESTIONES)
+    data = ws.get_all_records()
+    if not data:
+        return {}
+    return {
+        row["KEY"]: {k.lower(): v for k, v in row.items() if k != "KEY"}
+        for row in data if row.get("KEY")
+    }
+
+
+def subir_reporte(df):
     ws = get_sheet(HOJA_REPORTE)
     ws.clear()
-    # Asegurar columnas mínimas
     for col in COLS_REPORTE:
         if col not in df.columns:
             df[col] = ""
@@ -104,61 +158,37 @@ def subir_reporte_a_drive(df: pd.DataFrame):
     ws.update([df.columns.tolist()] + df.values.tolist())
 
 
-def eliminar_filas_reporte(indices_a_eliminar: list, df_completo: pd.DataFrame):
-    """Elimina filas del reporte por índice y reescribe la hoja."""
-    df_nuevo = df_completo.drop(index=indices_a_eliminar).reset_index(drop=True)
-    subir_reporte_a_drive(df_nuevo)
-    return df_nuevo
-
-
-# ---- GESTIONES ----
-COLS_GESTIONES = ["KEY", "TIPIFICACION", "NAALOO", "OBSERVACIONES",
-                  "RESPONSABLE", "FECHA_GESTION", "SUCURSAL_ORIGEN"]
-
-def cargar_gestiones_desde_drive():
-    ws = get_sheet(HOJA_GESTIONES)
-    data = ws.get_all_records()
-    if not data:
-        return {}
-    return {row["KEY"]: {k.lower(): v for k, v in row.items() if k != "KEY"}
-            for row in data if row.get("KEY")}
-
-
-def guardar_gestion_en_drive(key: str, datos: dict):
+def guardar_gestion(key, datos):
     ws = get_sheet(HOJA_GESTIONES)
     todas = ws.get_all_records()
     keys_existentes = [r.get("KEY") for r in todas]
-
-    fila = [
-        key,
-        datos.get("tipificacion", ""),
-        datos.get("naaloo", ""),
-        datos.get("observaciones", ""),
-        datos.get("responsable", ""),
-        datos.get("fecha_gestion", ""),
-        datos.get("sucursal_origen", ""),
-    ]
-
+    fila = [key, datos.get("tipificacion",""), datos.get("naaloo",""),
+            datos.get("observaciones",""), datos.get("responsable",""),
+            datos.get("fecha_gestion",""), datos.get("sucursal_origen","")]
     if key in keys_existentes:
-        idx = keys_existentes.index(key) + 2  # +2: header en fila 1, 1-indexed
+        idx = keys_existentes.index(key) + 2
         ws.update(f"A{idx}:G{idx}", [fila])
     else:
-        if not todas:  # primera vez: poner encabezado
+        if not todas:
             ws.update("A1:G1", [COLS_GESTIONES])
         ws.append_row(fila)
 
 
-def eliminar_gestion_de_drive(key: str):
+def eliminar_gestion(key):
     ws = get_sheet(HOJA_GESTIONES)
     todas = ws.get_all_records()
-    keys_existentes = [r.get("KEY") for r in todas]
-    if key in keys_existentes:
-        idx = keys_existentes.index(key) + 2
-        ws.delete_rows(idx)
+    keys_ex = [r.get("KEY") for r in todas]
+    if key in keys_ex:
+        ws.delete_rows(keys_ex.index(key) + 2)
 
 
-# ===================== HELPERS =====================
-def calcular_estado_plazo(fecha_str):
+def eliminar_filas_reporte(indices, df_completo):
+    df_nuevo = df_completo.drop(index=indices).reset_index(drop=True)
+    subir_reporte(df_nuevo)
+    return df_nuevo
+
+
+def calcular_plazo(fecha_str):
     try:
         fecha = datetime.strptime(str(fecha_str).strip(), "%d/%m/%Y").date()
     except Exception:
@@ -168,122 +198,93 @@ def calcular_estado_plazo(fecha_str):
     return ("VENCIDO" if date.today() > limite else "PENDIENTE"), dias
 
 
-def clave_registro(row):
+def clave(row):
     return f"{str(row['FECHA']).strip()}_{str(row['LEGAJO']).strip()}_{str(row['SUCURSAL']).strip()}"
 
 
-def estado_gestion(key, gestiones):
+def estado_gestion_fn(key, gestiones):
     g = gestiones.get(key, {})
-    if g.get("tipificacion"):
-        return "RESUELTO", g
-    return "PENDIENTE", g
+    return ("RESUELTO", g) if g.get("tipificacion") else ("PENDIENTE", g)
 
 
-def get_estado_fila(row, gestiones):
-    key = clave_registro(row)
-    est, _ = estado_gestion(key, gestiones)
+def estado_fila(row, gestiones):
+    k = clave(row)
+    est, _ = estado_gestion_fn(k, gestiones)
     if est == "RESUELTO":
         return "RESUELTO"
-    plazo, _ = calcular_estado_plazo(row["FECHA"])
+    plazo, _ = calcular_plazo(row["FECHA"])
     return plazo
 
 
 def excel_a_df(archivo_bytes):
-    """Convierte bytes de un Excel (multi-hoja) al DataFrame unificado del reporte."""
     sheets = pd.read_excel(io.BytesIO(archivo_bytes), sheet_name=None)
     frames = []
     for _, df in sheets.items():
         df.columns = [str(c).strip() for c in df.columns]
         df = df.fillna("")
-        # Normalizar columnas al formato esperado
-        df = df.rename(columns={"MAÑANA": "MAÑANA"})  # por si viene con tilde rara
         for col in COLS_REPORTE:
             if col not in df.columns:
                 df[col] = ""
         frames.append(df[COLS_REPORTE])
-    if not frames:
-        return pd.DataFrame(columns=COLS_REPORTE)
-    return pd.concat(frames, ignore_index=True).astype(str)
+    return pd.concat(frames, ignore_index=True).astype(str) if frames else pd.DataFrame(columns=COLS_REPORTE)
 
 
-def mostrar_formulario(key, gestion_actual, gestiones_dict, row, es_rrhh):
-    col1, col2 = st.columns(2)
-    with col1:
+def form_tipificacion(key, gestion_actual, gestiones_dict, row, es_rrhh):
+    c1, c2 = st.columns(2)
+    with c1:
         tip_actual = gestion_actual.get("tipificacion", TIPIFICACIONES[0])
         tip_idx = TIPIFICACIONES.index(tip_actual) if tip_actual in TIPIFICACIONES else 0
         tipificacion = st.selectbox("Tipo de ausencia *", TIPIFICACIONES, index=tip_idx, key=f"tip_{key}")
-    with col2:
-        naaloo_actual = gestion_actual.get("naaloo", NAALOO_OPTS[0])
-        naaloo_idx = NAALOO_OPTS.index(naaloo_actual) if naaloo_actual in NAALOO_OPTS else 0
-        naaloo = st.selectbox("¿Cargado en Naaloo? *", NAALOO_OPTS, index=naaloo_idx, key=f"naaloo_{key}")
+    with c2:
+        n_actual = gestion_actual.get("naaloo", NAALOO_OPTS[0])
+        n_idx = NAALOO_OPTS.index(n_actual) if n_actual in NAALOO_OPTS else 0
+        naaloo = st.selectbox("¿Cargado en Naaloo? *", NAALOO_OPTS, index=n_idx, key=f"naaloo_{key}")
 
-    observaciones = st.text_area(
-        "Observaciones",
-        value=gestion_actual.get("observaciones", ""),
-        placeholder="Ej: Avisó por WhatsApp, presentó certificado médico el...",
-        key=f"obs_{key}", height=70,
-    )
-    responsable = st.text_input(
-        "Responsable *",
-        value=gestion_actual.get("responsable", ""),
-        placeholder="Nombre de quien tipifica",
-        key=f"resp_{key}",
-    )
+    obs = st.text_area("Observaciones", value=gestion_actual.get("observaciones",""),
+                       placeholder="Ej: Avisó por WhatsApp, presentó certificado el...",
+                       key=f"obs_{key}", height=70)
+    resp = st.text_input("Responsable *", value=gestion_actual.get("responsable",""),
+                         placeholder="Nombre de quien tipifica", key=f"resp_{key}")
 
-    col_btn, _ = st.columns([1, 3])
-    with col_btn:
+    cb, _ = st.columns([1, 3])
+    with cb:
         if st.button("💾 Guardar", key=f"btn_{key}"):
-            if not responsable.strip():
+            if not resp.strip():
                 st.error("El campo Responsable es obligatorio.")
             else:
                 datos = {
-                    "tipificacion": tipificacion,
-                    "naaloo": naaloo,
-                    "observaciones": observaciones.strip(),
-                    "responsable": responsable.strip(),
+                    "tipificacion": tipificacion, "naaloo": naaloo,
+                    "observaciones": obs.strip(), "responsable": resp.strip(),
                     "fecha_gestion": datetime.now().strftime("%d/%m/%Y %H:%M"),
                     "sucursal_origen": "RRHH" if es_rrhh else str(row["SUCURSAL"]),
                 }
-                guardar_gestion_en_drive(key, datos)
+                guardar_gestion(key, datos)
                 gestiones_dict[key] = datos
                 st.success("✅ Guardado en Drive")
                 st.cache_data.clear()
                 st.rerun()
 
     if gestion_actual.get("fecha_gestion"):
-        st.caption(
-            f"Guardado: {gestion_actual['fecha_gestion']} "
-            f"— {gestion_actual.get('responsable','')} "
-            f"({gestion_actual.get('sucursal_origen','')})"
-        )
+        st.caption(f"Guardado: {gestion_actual['fecha_gestion']} — {gestion_actual.get('responsable','')} ({gestion_actual.get('sucursal_origen','')})")
 
 
-# ===================== CARGA CON CACHE =====================
-@st.cache_data(ttl=60)
-def _cargar_reporte():
-    return cargar_reporte_desde_drive()
-
-@st.cache_data(ttl=30)
-def _cargar_gestiones():
-    return cargar_gestiones_desde_drive()
-
-# ===================== SIDEBAR =====================
+# ====== SIDEBAR ======
 with st.sidebar:
     st.markdown("## 🔐 Acceso")
     modo = st.radio("Tipo de acceso", ["Sucursal", "RRHH (Global)"])
 
+    df_temp = cargar_reporte()
+    sucursales_disponibles = sorted(df_temp["SUCURSAL"].dropna().unique().tolist()) if not df_temp.empty else []
+
     if modo == "Sucursal":
-        # Cargamos lista de sucursales para el selector
-        df_temp = _cargar_reporte()
-        sucursales_disponibles = sorted(df_temp["SUCURSAL"].dropna().unique().tolist()) if not df_temp.empty else []
         sucursal_sel = st.selectbox("Sucursal", sucursales_disponibles) if sucursales_disponibles else None
         password = st.text_input("Contraseña", type="password")
         es_rrhh = False
         if sucursal_sel:
             slug = (sucursal_sel.lower()
-                    .replace(' ','').replace('.','')
-                    .replace('ü','u').replace('é','e').replace('ó','o')
-                    .replace('á','a').replace('í','i').replace('ú','u'))
+                    .replace(" ","").replace(".","")
+                    .replace("ü","u").replace("é","e").replace("ó","o")
+                    .replace("á","a").replace("í","i").replace("ú","u"))
             autenticado = password == f"{slug}{date.today().year}"
         else:
             autenticado = False
@@ -295,13 +296,12 @@ with st.sidebar:
 
     if password and not autenticado:
         st.error("❌ Contraseña incorrecta")
-
     st.markdown("---")
     st.caption(f"📅 {date.today().strftime('%d/%m/%Y')}")
 
-# ===================== HEADER =====================
-st.markdown('<div class="titulo">📋 GESTIÓN DE AUSENCIAS</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitulo">Tipificación y seguimiento — plazo 48hs</div>', unsafe_allow_html=True)
+# ====== HEADER ======
+st.markdown('<h1 style="text-align:center;color:#0f1f3d;font-size:34px;font-weight:800;margin-bottom:4px;">📋 GESTIÓN DE AUSENCIAS</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align:center;color:#666;font-size:15px;margin-bottom:20px;">Tipificación y seguimiento — plazo 48hs</p>', unsafe_allow_html=True)
 
 if not password:
     st.info("👈 Seleccioná tu sucursal e ingresá la contraseña para continuar.")
@@ -309,168 +309,114 @@ if not password:
 if not autenticado:
     st.stop()
 
-# ===================== CARGA DE DATOS =====================
-df_global   = _cargar_reporte()
-gestiones   = _cargar_gestiones()
+df_global  = cargar_reporte()
+gestiones  = cargar_gestiones()
 
-if df_global.empty:
-    if es_rrhh:
-        st.warning("No hay datos cargados aún. Subí el reporte desde la sección de administración abajo.")
-    else:
-        st.warning("No hay datos disponibles. Contactá a RRHH.")
-    if not es_rrhh:
-        st.stop()
-
-sucursales_disponibles = sorted(df_global["SUCURSAL"].dropna().unique().tolist()) if not df_global.empty else []
-
-# ===================== PANEL RRHH — ADMIN =====================
+# ====== ADMIN RRHH ======
 if es_rrhh:
-    with st.expander("⚙️ Administración — Subir nuevo reporte / Gestión de casos", expanded=df_global.empty):
-        tab_subir, tab_manual = st.tabs(["📤 Subir Excel", "✏️ Gestión manual de casos"])
+    with st.expander("⚙️ Administración — Subir reporte / Gestión de casos", expanded=df_global.empty):
+        tab_subir, tab_manual = st.tabs(["📤 Subir Excel", "✏️ Gestión de casos"])
 
-        # ---- TAB SUBIR EXCEL ----
         with tab_subir:
-            st.markdown("**Subí el Excel generado por tu script Python.** Reemplaza todos los datos del reporte actual.")
-            st.caption("Formato esperado: múltiples hojas, una por sucursal, con columnas: FECHA, LEGAJO, SUCURSAL, NOMBRE, MAÑANA, TARDE, SITUACION, LICENCIA")
-
-            archivo = st.file_uploader(
-                "Seleccioná el archivo .xlsx",
-                type=["xlsx"],
-                key="uploader_reporte",
-            )
-
+            st.markdown("**Subí el Excel generado por tu script.** Reemplaza todos los datos del reporte.")
+            archivo = st.file_uploader("Seleccioná el archivo .xlsx", type=["xlsx"], key="up_reporte")
             if archivo is not None:
                 try:
                     df_preview = excel_a_df(archivo.getvalue())
-                    ausentes_preview = df_preview[df_preview["SITUACION"].str.contains("AUSENTE", case=False, na=False)]
-                    st.success(f"✅ Archivo leído: **{len(df_preview)}** filas totales — **{len(ausentes_preview)}** ausentes detectados")
+                    aus_prev = df_preview[df_preview["SITUACION"].str.contains("AUSENTE", case=False, na=False)]
+                    st.success(f"✅ {len(df_preview)} filas leídas — {len(aus_prev)} ausentes detectados")
                     st.dataframe(df_preview.head(10), use_container_width=True, hide_index=True)
-
-                    col_conf1, col_conf2 = st.columns([1, 3])
-                    with col_conf1:
-                        if st.button("⬆️ Confirmar y subir a Drive", key="btn_subir_excel"):
-                            with st.spinner("Subiendo a Google Drive..."):
-                                subir_reporte_a_drive(df_preview)
-                            st.success("✅ Reporte actualizado en Drive.")
+                    cb1, _ = st.columns([1, 3])
+                    with cb1:
+                        if st.button("⬆️ Confirmar y subir", key="btn_subir"):
+                            with st.spinner("Subiendo..."):
+                                subir_reporte(df_preview)
+                            st.success("✅ Reporte actualizado.")
                             st.cache_data.clear()
                             st.rerun()
                 except Exception as e:
                     st.error(f"Error al leer el archivo: {e}")
 
-        # ---- TAB GESTIÓN MANUAL ----
         with tab_manual:
-            st.markdown("**Eliminá casos del reporte** que ya están cerrados o que no corresponden.")
-            st.caption("Esto borra la fila del reporte Y su tipificación asociada. Es irreversible.")
-
+            st.markdown("**Eliminá casos** que ya están cerrados. Borra la fila y su tipificación.")
             if df_global.empty:
-                st.info("No hay datos en el reporte.")
+                st.info("No hay datos cargados.")
             else:
-                df_ausentes_admin = df_global[df_global["SITUACION"].str.contains("AUSENTE", case=False, na=False)].copy()
-                df_ausentes_admin["_ESTADO"] = df_ausentes_admin.apply(lambda r: get_estado_fila(r, gestiones), axis=1)
-                df_ausentes_admin["_KEY"] = df_ausentes_admin.apply(clave_registro, axis=1)
-
-                # Filtro rápido
-                suc_filtro = st.selectbox("Filtrar por sucursal", ["Todas"] + sucursales_disponibles, key="admin_suc")
-                df_admin_view = df_ausentes_admin.copy()
-                if suc_filtro != "Todas":
-                    df_admin_view = df_admin_view[df_admin_view["SUCURSAL"] == suc_filtro]
-
-                if df_admin_view.empty:
-                    st.info("Sin registros para mostrar.")
-                else:
-                    # Mostrar tabla con checkboxes para seleccionar a eliminar
-                    st.markdown(f"**{len(df_admin_view)} casos** — Seleccioná los que querés eliminar:")
-
-                    seleccionados = []
-                    for i, (orig_idx, row) in enumerate(df_admin_view.iterrows()):
-                        key = row["_KEY"]
-                        est = row["_ESTADO"]
-                        g = gestiones.get(key, {})
-
-                        if est == "RESUELTO":
-                            estado_txt = f"✅ {g.get('tipificacion','')}"
-                        elif est == "VENCIDO":
-                            estado_txt = "🚨 VENCIDO"
-                        else:
-                            estado_txt = "⏳ PENDIENTE"
-
-                        col_chk, col_info = st.columns([0.5, 9.5])
-                        with col_chk:
-                            elegido = st.checkbox("", key=f"chk_{key}_{i}", label_visibility="collapsed")
-                        with col_info:
-                            lic = str(row.get("LICENCIA","")).strip()
-                            lic_txt = f" · Naaloo: {lic}" if lic and lic != "nan" else ""
-                            st.markdown(
-                                f"**{row['NOMBRE'].strip()}** — Leg. {row['LEGAJO']} · {row['SUCURSAL']} · {row['FECHA']} · {estado_txt}{lic_txt}"
-                            )
-
-                        if elegido:
-                            seleccionados.append((orig_idx, key))
-
-                    if seleccionados:
-                        st.warning(f"Vas a eliminar **{len(seleccionados)}** caso(s). Esta acción no se puede deshacer.")
-                        col_del, _ = st.columns([1, 4])
-                        with col_del:
-                            if st.button("🗑️ Eliminar seleccionados", key="btn_eliminar"):
-                                with st.spinner("Eliminando..."):
-                                    indices = [s[0] for s in seleccionados]
-                                    keys_a_borrar = [s[1] for s in seleccionados]
-                                    # Eliminar del reporte
-                                    eliminar_filas_reporte(indices, df_global)
-                                    # Eliminar gestiones asociadas
-                                    for k in keys_a_borrar:
-                                        if k in gestiones:
-                                            eliminar_gestion_de_drive(k)
-                                st.success("✅ Casos eliminados.")
-                                st.cache_data.clear()
-                                st.rerun()
-
+                df_adm = df_global[df_global["SITUACION"].str.contains("AUSENTE", case=False, na=False)].copy()
+                df_adm["_ESTADO"] = df_adm.apply(lambda r: estado_fila(r, gestiones), axis=1)
+                df_adm["_KEY"] = df_adm.apply(clave, axis=1)
+                suc_adm = st.selectbox("Filtrar sucursal", ["Todas"] + sucursales_disponibles, key="adm_suc")
+                if suc_adm != "Todas":
+                    df_adm = df_adm[df_adm["SUCURSAL"] == suc_adm]
+                seleccionados = []
+                for i, (orig_idx, row) in enumerate(df_adm.iterrows()):
+                    k = row["_KEY"]
+                    est = row["_ESTADO"]
+                    g = gestiones.get(k, {})
+                    est_txt = f"✅ {g.get('tipificacion','')}" if est == "RESUELTO" else ("🚨 VENCIDO" if est == "VENCIDO" else "⏳ PENDIENTE")
+                    lic = str(row.get("LICENCIA","")).strip()
+                    lic_txt = f" · {lic}" if lic and lic != "nan" else ""
+                    cc, ci = st.columns([0.5, 9.5])
+                    with cc:
+                        elegido = st.checkbox("", key=f"chk_{k}_{i}", label_visibility="collapsed")
+                    with ci:
+                        st.markdown(f"**{row['NOMBRE'].strip()}** — Leg. {row['LEGAJO']} · {row['SUCURSAL']} · {row['FECHA']} · {est_txt}{lic_txt}")
+                    if elegido:
+                        seleccionados.append((orig_idx, k))
+                if seleccionados:
+                    st.warning(f"Eliminás {len(seleccionados)} caso(s). No se puede deshacer.")
+                    cd, _ = st.columns([1, 4])
+                    with cd:
+                        if st.button("🗑️ Eliminar seleccionados", key="btn_del"):
+                            with st.spinner("Eliminando..."):
+                                eliminar_filas_reporte([s[0] for s in seleccionados], df_global)
+                                for _, k in seleccionados:
+                                    if k in gestiones:
+                                        eliminar_gestion(k)
+                            st.success("✅ Eliminados.")
+                            st.cache_data.clear()
+                            st.rerun()
     st.markdown("---")
 
-# ===================== DATOS PARA VISTA PRINCIPAL =====================
 if df_global.empty:
+    st.warning("No hay datos. RRHH debe subir el reporte primero.")
     st.stop()
 
-df_vista = df_global.copy() if es_rrhh else df_global[df_global["SUCURSAL"] == sucursal_sel].copy()
+sucursales_disponibles = sorted(df_global["SUCURSAL"].dropna().unique().tolist())
+df_vista   = df_global.copy() if es_rrhh else df_global[df_global["SUCURSAL"] == sucursal_sel].copy()
 df_ausentes = df_vista[df_vista["SITUACION"].str.contains("AUSENTE", case=False, na=False)].copy()
-df_ausentes["_ESTADO"] = df_ausentes.apply(lambda r: get_estado_fila(r, gestiones), axis=1)
+df_ausentes["_ESTADO"] = df_ausentes.apply(lambda r: estado_fila(r, gestiones), axis=1)
 
 titulo_vista = "Vista Global — Todas las Sucursales" if es_rrhh else f"Sucursal: {sucursal_sel}"
 st.markdown(f"### {titulo_vista}")
 
-# ===================== MÉTRICAS =====================
-total     = len(df_ausentes)
-resueltos = int((df_ausentes["_ESTADO"] == "RESUELTO").sum())
-vencidos  = int((df_ausentes["_ESTADO"] == "VENCIDO").sum())
-pendientes= int((df_ausentes["_ESTADO"] == "PENDIENTE").sum())
+total      = len(df_ausentes)
+resueltos  = int((df_ausentes["_ESTADO"] == "RESUELTO").sum())
+vencidos   = int((df_ausentes["_ESTADO"] == "VENCIDO").sum())
+pendientes = int((df_ausentes["_ESTADO"] == "PENDIENTE").sum())
 
 c1, c2, c3, c4 = st.columns(4)
 c1.markdown(f'<div class="metric-box"><div class="metric-num" style="color:#0f1f3d">{total}</div><div class="metric-label">Total</div></div>', unsafe_allow_html=True)
 c2.markdown(f'<div class="metric-box"><div class="metric-num" style="color:#f59e0b">{pendientes}</div><div class="metric-label">⏳ Pendientes</div></div>', unsafe_allow_html=True)
 c3.markdown(f'<div class="metric-box"><div class="metric-num" style="color:#dc2626">{vencidos}</div><div class="metric-label">🚨 Vencidos +48hs</div></div>', unsafe_allow_html=True)
 c4.markdown(f'<div class="metric-box"><div class="metric-num" style="color:#10b981">{resueltos}</div><div class="metric-label">✅ Tipificados</div></div>', unsafe_allow_html=True)
-
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ===================== FILTROS =====================
+# ====== FILTROS ======
 cf1, cf2, cf3 = st.columns([2, 2, 2])
 with cf1:
-    buscar = st.text_input("🔎 Buscar nombre o legajo", placeholder="Ej: GARCIA o 5402")
+    buscar = st.text_input("🔎 Buscar nombre o legajo")
 with cf2:
-    filtro_estado = st.selectbox("Estado", ["Todos", "Pendientes", "Vencidos (+48hs)", "Tipificados"])
+    filtro_estado = st.selectbox("Estado", ["Todos","Pendientes","Vencidos (+48hs)","Tipificados"])
 with cf3:
-    if es_rrhh:
-        filtro_suc = st.selectbox("Sucursal", ["Todas"] + sucursales_disponibles)
-    else:
-        filtro_suc = sucursal_sel
+    filtro_suc = st.selectbox("Sucursal", ["Todas"] + sucursales_disponibles) if es_rrhh else sucursal_sel
 
 df_filtrado = df_ausentes.copy()
 if buscar:
-    mask = (
+    df_filtrado = df_filtrado[
         df_filtrado["NOMBRE"].str.contains(buscar, case=False, na=False) |
         df_filtrado["LEGAJO"].astype(str).str.contains(buscar, na=False)
-    )
-    df_filtrado = df_filtrado[mask]
+    ]
 if es_rrhh and filtro_suc != "Todas":
     df_filtrado = df_filtrado[df_filtrado["SUCURSAL"] == filtro_suc]
 if filtro_estado == "Pendientes":
@@ -480,113 +426,84 @@ elif filtro_estado == "Vencidos (+48hs)":
 elif filtro_estado == "Tipificados":
     df_filtrado = df_filtrado[df_filtrado["_ESTADO"] == "RESUELTO"]
 
-orden_map = {"VENCIDO": 0, "PENDIENTE": 1, "RESUELTO": 2}
+orden_map = {"VENCIDO":0, "PENDIENTE":1, "RESUELTO":2}
 df_filtrado = df_filtrado.copy()
 df_filtrado["_ORDEN"] = df_filtrado["_ESTADO"].map(orden_map)
-df_filtrado = df_filtrado.sort_values(["_ORDEN", "FECHA", "SUCURSAL", "NOMBRE"]).reset_index(drop=True)
+df_filtrado = df_filtrado.sort_values(["_ORDEN","FECHA","SUCURSAL","NOMBRE"]).reset_index(drop=True)
 
 st.markdown(f"**{len(df_filtrado)} registros**")
 st.markdown("---")
 
-# ===================== LISTA REGISTROS =====================
+# ====== LISTA ======
 if df_filtrado.empty:
-    st.info("✨ Sin registros para los filtros seleccionados.")
+    st.info("Sin registros para los filtros seleccionados.")
 else:
     for _, row in df_filtrado.iterrows():
-        key = clave_registro(row)
-        est_actual, gestion_actual = estado_gestion(key, gestiones)
-        plazo_str, dias = calcular_estado_plazo(str(row["FECHA"]))
+        k = clave(row)
+        est_actual, gestion_actual = estado_gestion_fn(k, gestiones)
+        plazo_str, dias = calcular_plazo(str(row["FECHA"]))
 
         if est_actual == "RESUELTO":
-            border_color = "#10b981"
-            badge = (f'<span style="background:#d1fae5;color:#065f46;padding:3px 12px;'
-                     f'border-radius:20px;font-size:12px;font-weight:600;">'
-                     f'✅ {gestion_actual.get("tipificacion","")}</span>')
+            border_col = "#10b981"
+            bh = badge_html("✅ " + gestion_actual.get("tipificacion",""), "#d1fae5", "#065f46")
         elif plazo_str == "VENCIDO":
-            border_color = "#dc2626"
-            badge = ('<span style="background:#fee2e2;color:#991b1b;padding:3px 12px;'
-                     'border-radius:20px;font-size:12px;font-weight:600;">'
-                     '🚨 VENCIDO (+48hs)</span>')
+            border_col = "#dc2626"
+            bh = badge_html("🚨 VENCIDO (+48hs)", "#fee2e2", "#991b1b")
         else:
-            border_color = "#f59e0b"
-            dias_txt = f"{dias} día(s)" if dias > 0 else "vence hoy"
-            badge = (f'<span style="background:#fef3c7;color:#92400e;padding:3px 12px;'
-                     f'border-radius:20px;font-size:12px;font-weight:600;">'
-                     f'⏳ PENDIENTE — {dias_txt}</span>')
+            border_col = "#f59e0b"
+            dt = f"{dias} día(s)" if dias > 0 else "vence hoy"
+            bh = badge_html(f"⏳ PENDIENTE — {dt}", "#fef3c7", "#92400e")
 
-        lic_str = str(row.get("LICENCIA","")).strip()
-        lic_html = (f'<span style="color:#888;font-size:12px;">📄 Naaloo previo: {lic_str}</span>'
-                    if lic_str and lic_str not in ("nan", "") else "")
-        suc_html = (f'<span style="color:#888;font-size:12px;">📍 {row["SUCURSAL"]}</span>'
-                    if es_rrhh else "")
+        suc_label = row["SUCURSAL"] if es_rrhh else ""
+        lic_str   = str(row.get("LICENCIA","")).strip()
+        lic_clean = lic_str if lic_str and lic_str != "nan" else ""
 
-        st.markdown(f"""
-        <div style="background:white;padding:16px 20px;border-radius:10px;
-                    border-left:4px solid {border_color};margin-bottom:8px;
-                    box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <span style="font-size:15px;font-weight:600;color:#111;">
-                        👤 {str(row['NOMBRE']).strip()}
-                    </span>
-                    <span style="color:#666;font-size:13px;">Leg. {row['LEGAJO']}</span>
-                    {suc_html}
-                </div>
-                <div>{badge}</div>
-            </div>
-            <div style="display:flex;gap:20px;font-size:13px;color:#444;flex-wrap:wrap;align-items:center;">
-                <span>📅 <b>{row['FECHA']}</b></span>
-                <span>🌅 Mañana: <b>{row['MAÑANA']}</b></span>
-                <span>🌆 Tarde: <b>{row['TARDE']}</b></span>
-                {lic_html}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        render_card(
+            nombre=str(row["NOMBRE"]).strip(),
+            legajo=row["LEGAJO"],
+            fecha=row["FECHA"],
+            manana=row["MAÑANA"],
+            tarde=row["TARDE"],
+            licencia=lic_clean,
+            suc_label=suc_label,
+            border_color=border_col,
+            badge_html=bh
+        )
 
         label_exp = "Ver / Editar tipificación" if est_actual == "RESUELTO" else "➕ Tipificar ausencia"
         with st.expander(label_exp):
-            mostrar_formulario(key, gestion_actual, gestiones, row, es_rrhh)
+            form_tipificacion(k, gestion_actual, gestiones, row, es_rrhh)
 
-# ===================== EXPORTAR (solo RRHH) =====================
+# ====== EXPORTAR ======
 if es_rrhh and not df_ausentes.empty:
     st.markdown("---")
     st.markdown("### 📊 Exportar")
-    col_exp, col_res = st.columns(2)
-
-    rows_export = []
+    rows_exp = []
     for _, row in df_ausentes.iterrows():
-        key = clave_registro(row)
-        est, g = estado_gestion(key, gestiones)
-        plazo, _ = calcular_estado_plazo(str(row["FECHA"]))
-        rows_export.append({
-            "FECHA": row["FECHA"], "LEGAJO": row["LEGAJO"],
-            "NOMBRE": row["NOMBRE"], "SUCURSAL": row["SUCURSAL"],
-            "MAÑANA": row["MAÑANA"], "TARDE": row["TARDE"],
-            "NAALOO_PREVIO": row.get("LICENCIA",""),
-            "ESTADO": est if est == "RESUELTO" else plazo,
-            "TIPIFICACION": g.get("tipificacion",""),
-            "NAALOO_CARGADO": g.get("naaloo",""),
-            "OBSERVACIONES": g.get("observaciones",""),
-            "RESPONSABLE": g.get("responsable",""),
-            "FECHA_GESTION": g.get("fecha_gestion",""),
+        k = clave(row)
+        est, g = estado_gestion_fn(k, gestiones)
+        plazo, _ = calcular_plazo(str(row["FECHA"]))
+        rows_exp.append({
+            "FECHA":row["FECHA"],"LEGAJO":row["LEGAJO"],"NOMBRE":row["NOMBRE"],
+            "SUCURSAL":row["SUCURSAL"],"MAÑANA":row["MAÑANA"],"TARDE":row["TARDE"],
+            "NAALOO_PREVIO":row.get("LICENCIA",""),
+            "ESTADO": est if est=="RESUELTO" else plazo,
+            "TIPIFICACION":g.get("tipificacion",""),"NAALOO_CARGADO":g.get("naaloo",""),
+            "OBSERVACIONES":g.get("observaciones",""),"RESPONSABLE":g.get("responsable",""),
+            "FECHA_GESTION":g.get("fecha_gestion",""),
         })
-    df_export = pd.DataFrame(rows_export)
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df_export.to_excel(writer, index=False, sheet_name="Ausencias")
-
-    with col_exp:
-        st.download_button(
-            "⬇️ Descargar Excel con gestiones",
-            data=buffer.getvalue(),
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        pd.DataFrame(rows_exp).to_excel(writer, index=False, sheet_name="Ausencias")
+    ce, cr = st.columns(2)
+    with ce:
+        st.download_button("⬇️ Descargar Excel", data=buf.getvalue(),
             file_name=f"ausencias_{date.today().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-    with col_res:
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    with cr:
         resumen = df_ausentes.groupby("SUCURSAL")["_ESTADO"].value_counts().unstack(fill_value=0)
-        for col_name in ["VENCIDO","PENDIENTE","RESUELTO"]:
-            if col_name not in resumen.columns:
-                resumen[col_name] = 0
+        for cn in ["VENCIDO","PENDIENTE","RESUELTO"]:
+            if cn not in resumen.columns: resumen[cn] = 0
         resumen = resumen[["VENCIDO","PENDIENTE","RESUELTO"]].reset_index()
         resumen.columns = ["Sucursal","🚨 Vencidos","⏳ Pendientes","✅ Tipificados"]
         st.dataframe(resumen, use_container_width=True, hide_index=True)
