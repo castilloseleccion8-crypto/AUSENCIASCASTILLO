@@ -409,8 +409,17 @@ if df_global.empty:
     st.stop()
 
 sucursales_disponibles = sorted(df_global["SUCURSAL"].dropna().unique().tolist())
-df_vista    = df_global.copy() if es_rrhh else df_global[df_global["SUCURSAL"] == sucursal_sel].copy()
-df_ausentes = df_vista[df_vista["SITUACION"].str.contains("AUSENTE", case=False, na=False)].copy()
+df_vista = df_global.copy() if es_rrhh else df_global[df_global["SUCURSAL"] == sucursal_sel].copy()
+
+# Lógica para filtrar Sábados a la tarde (Falsos Ausentes)
+df_vista['FECHA_DT'] = pd.to_datetime(df_vista['FECHA'], format='%d/%m/%Y', errors='coerce')
+es_sabado = df_vista['FECHA_DT'].dt.weekday == 5
+tarde_ausente_solo = (df_vista['MAÑANA'].str.upper().str.strip() == 'P') & (df_vista['TARDE'].str.upper().str.strip() == 'A')
+condicion_ausente = df_vista["SITUACION"].str.contains("AUSENTE", case=False, na=False)
+excluir_sabado_tarde = es_sabado & tarde_ausente_solo
+
+# Creamos el DF de ausentes aplicando la exclusión
+df_ausentes = df_vista[condicion_ausente & ~excluir_sabado_tarde].copy()
 df_ausentes["_ESTADO"] = df_ausentes.apply(lambda r: estado_fila(r, gestiones), axis=1)
 df_ausentes["_KEY"]    = df_ausentes.apply(clave, axis=1)
 
