@@ -59,7 +59,7 @@ PASSWORD_RRHH  = "rrhh2026"
 HOJA_REPORTE   = "REPORTE"
 HOJA_GESTIONES = "GESTIONES"
 HOJA_HISTORIAL = "HISTORIAL"
-COLS_REPORTE   = ["FECHA","LEGAJO","SUCURSAL","NOMBRE","MAÑANA","TARDE","SITUACION","LICENCIA"]
+COLS_REPORTE   = ["FECHA","LEGAJO","SUCURSAL","NOMBRE","POSICION","MAÑANA","TARDE","SITUACION","LICENCIA"]
 COLS_GESTIONES = ["KEY","TIPIFICACION","NAALOO","OBSERVACIONES","RESPONSABLE","FECHA_GESTION","SUCURSAL_ORIGEN"]
 
 # ── GOOGLE SHEETS ────────────────────────────────────────────────────────────
@@ -84,7 +84,11 @@ def cargar_reporte():
     data = ws.get_all_records()
     if not data:
         return pd.DataFrame(columns=COLS_REPORTE)
-    return pd.DataFrame(data).fillna("")
+    df = pd.DataFrame(data).fillna("")
+    for col in COLS_REPORTE:
+        if col not in df.columns:
+            df[col] = ""
+    return df
 
 @st.cache_data(ttl=30)
 def cargar_gestiones():
@@ -107,7 +111,6 @@ def subir_reporte(df):
     ws.update([df.columns.tolist()] + df.values.tolist())
 
 def guardar_gestion(key, datos):
-    """Guarda sin sobrescribir si ya existe — solo actualiza campos vacíos nuevos."""
     ws = get_sheet(HOJA_GESTIONES)
     todas = ws.get_all_records()
     keys_ex = [r.get("KEY") for r in todas]
@@ -129,13 +132,12 @@ def guardar_gestion(key, datos):
         ws.append_row(fila)
 
 def archivar_y_eliminar(keys_a_archivar, indices_reporte, df_completo, gestiones_dict):
-    """Mueve casos al HISTORIAL en lugar de borrarlos definitivamente."""
     ws_hist = get_sheet(HOJA_HISTORIAL)
     ws_gest = get_sheet(HOJA_GESTIONES)
 
     hist_data = ws_hist.get_all_records()
     if not hist_data:
-        ws_hist.update("A1:N1", [["KEY","FECHA_ARCHIVO","FECHA","LEGAJO","SUCURSAL","NOMBRE",
+        ws_hist.update("A1:O1", [["KEY","FECHA_ARCHIVO","FECHA","LEGAJO","SUCURSAL","NOMBRE","POSICION",
                                    "MAÑANA","TARDE","LICENCIA_NAALOO",
                                    "TIPIFICACION","NAALOO_CARGADO","OBSERVACIONES",
                                    "RESPONSABLE","FECHA_GESTION"]])
@@ -143,18 +145,18 @@ def archivar_y_eliminar(keys_a_archivar, indices_reporte, df_completo, gestiones
     filas_hist = []
     for k in keys_a_archivar:
         g = gestiones_dict.get(k, {})
-        partes = k.split("_", 2)
-        fecha_r, legajo_r, suc_r = (partes + ["","",""])[:3]
-        fila_rep = df_completo[
-            (df_completo.apply(lambda r: clave(r), axis=1) == k)
-        ]
-        nombre_r = fila_rep["NOMBRE"].values[0] if not fila_rep.empty else ""
-        manana_r = fila_rep["MAÑANA"].values[0] if not fila_rep.empty else ""
-        tarde_r  = fila_rep["TARDE"].values[0]  if not fila_rep.empty else ""
-        lic_r    = fila_rep["LICENCIA"].values[0] if not fila_rep.empty else ""
+        fila_rep = df_completo[df_completo.apply(lambda r: clave(r), axis=1) == k]
+        nombre_r = fila_rep["NOMBRE"].values[0]   if not fila_rep.empty else ""
+        pos_r    = fila_rep["POSICION"].values[0]  if not fila_rep.empty else ""
+        manana_r = fila_rep["MAÑANA"].values[0]   if not fila_rep.empty else ""
+        tarde_r  = fila_rep["TARDE"].values[0]    if not fila_rep.empty else ""
+        lic_r    = fila_rep["LICENCIA"].values[0]  if not fila_rep.empty else ""
+        fecha_r  = fila_rep["FECHA"].values[0]    if not fila_rep.empty else ""
+        legajo_r = fila_rep["LEGAJO"].values[0]   if not fila_rep.empty else ""
+        suc_r    = fila_rep["SUCURSAL"].values[0] if not fila_rep.empty else ""
         filas_hist.append([
             k, datetime.now().strftime("%d/%m/%Y %H:%M"),
-            fecha_r, legajo_r, suc_r, nombre_r, manana_r, tarde_r, lic_r,
+            fecha_r, legajo_r, suc_r, nombre_r, pos_r, manana_r, tarde_r, lic_r,
             g.get("tipificacion",""), g.get("naaloo",""),
             g.get("observaciones",""), g.get("responsable",""), g.get("fecha_gestion",""),
         ])
@@ -162,11 +164,9 @@ def archivar_y_eliminar(keys_a_archivar, indices_reporte, df_completo, gestiones
     if filas_hist:
         ws_hist.append_rows(filas_hist)
 
-    # Eliminar del reporte
     df_nuevo = df_completo.drop(index=indices_reporte).reset_index(drop=True)
     subir_reporte(df_nuevo)
 
-    # Eliminar gestiones
     todas_g = ws_gest.get_all_records()
     keys_g  = [r.get("KEY") for r in todas_g]
     filas_borrar = sorted(
@@ -309,7 +309,6 @@ if es_rrhh:
     with st.expander("⚙️ Administración", expanded=df_global.empty):
         tab_subir, tab_limpiar = st.tabs(["📤 Subir nuevo reporte", "🗂️ Archivar casos"])
 
-        # ── Subir Excel ──
         with tab_subir:
             st.markdown("Subí el Excel de tu script. **Las tipificaciones ya cargadas no se tocan.**")
             archivo = st.file_uploader("Archivo .xlsx", type=["xlsx"], key="up_reporte")
@@ -330,22 +329,18 @@ if es_rrhh:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-        # ── Archivar casos ──
         with tab_limpiar:
             if df_global.empty:
                 st.info("No hay datos cargados.")
             else:
-                df_adm = df_global[df_global["SITUACION"].str.contains("AUSENTE", case=False, na=False)].copy()
+                df_adm = df_global[df_global["SITUACION"].str.contains("AUSENTE|MEDIO", case=False, na=False)].copy()
                 df_adm["_ESTADO"] = df_adm.apply(lambda r: estado_fila(r, gestiones), axis=1)
                 df_adm["_KEY"]    = df_adm.apply(clave, axis=1)
 
-                tipificados_keys = [
-                    row["_KEY"] for _, row in df_adm.iterrows()
-                    if row["_ESTADO"] == "RESUELTO"
-                ]
-                tipificados_idx = df_adm[df_adm["_ESTADO"] == "RESUELTO"].index.tolist()
+                tipificados_keys = [row["_KEY"] for _, row in df_adm.iterrows() if row["_ESTADO"] == "RESUELTO"]
+                tipificados_idx  = df_adm[df_adm["_ESTADO"] == "RESUELTO"].index.tolist()
 
-                # Botón limpiar todos tipificados
+                # ── Botón archivar todos los tipificados ──
                 c_limpiar, c_info = st.columns([2, 3])
                 with c_limpiar:
                     if tipificados_keys:
@@ -358,15 +353,22 @@ if es_rrhh:
                     else:
                         st.info("No hay casos tipificados para archivar.")
                 with c_info:
-                    st.caption("Los casos archivados se guardan en la hoja HISTORIAL del Drive. No se pierden.")
+                    st.caption("Los casos archivados van a la hoja HISTORIAL del Drive. No se pierden.")
 
                 st.markdown("---")
-                st.markdown("**O elegí casos individuales para archivar:**")
+                st.markdown("**O elegí casos individuales:**")
 
+                # Filtro por sucursal
                 suc_adm = st.selectbox("Filtrar por sucursal", ["Todas"] + sucursales_disponibles, key="adm_suc")
                 df_adm_v = df_adm.copy()
                 if suc_adm != "Todas":
                     df_adm_v = df_adm_v[df_adm_v["SUCURSAL"] == suc_adm]
+
+                # ── SELECCIONAR TODO ──
+                sel_todo = st.checkbox(
+                    f"☑️ Seleccionar todos ({len(df_adm_v)})",
+                    key="chk_todo"
+                )
 
                 seleccionados = []
                 for i, (orig_idx, row) in enumerate(df_adm_v.iterrows()):
@@ -380,11 +382,21 @@ if es_rrhh:
                     else:
                         est_txt = "⏳ PENDIENTE"
 
+                    pos_txt = f" · {row.get('POSICION','').strip()}" if str(row.get('POSICION','')).strip() else ""
+
                     cc, ci = st.columns([0.5, 9.5])
                     with cc:
-                        elegido = st.checkbox("", key=f"chk_{k}_{i}", label_visibility="collapsed")
+                        # Si "seleccionar todo" está marcado, forzar True
+                        elegido = st.checkbox(
+                            "", key=f"chk_{k}_{i}",
+                            value=sel_todo,
+                            label_visibility="collapsed"
+                        )
                     with ci:
-                        st.markdown(f"**{row['NOMBRE'].strip()}** · Leg. {row['LEGAJO']} · {row['SUCURSAL']} · {row['FECHA']} · {est_txt}")
+                        st.markdown(
+                            f"**{row['NOMBRE'].strip()}**{pos_txt} · "
+                            f"Leg. {row['LEGAJO']} · {row['SUCURSAL']} · {row['FECHA']} · {est_txt}"
+                        )
                     if elegido:
                         seleccionados.append((orig_idx, k))
 
@@ -402,6 +414,7 @@ if es_rrhh:
                             st.success("✅ Archivados.")
                             st.cache_data.clear()
                             st.rerun()
+
     st.markdown("---")
 
 if df_global.empty:
@@ -411,19 +424,10 @@ if df_global.empty:
 sucursales_disponibles = sorted(df_global["SUCURSAL"].dropna().unique().tolist())
 df_vista = df_global.copy() if es_rrhh else df_global[df_global["SUCURSAL"] == sucursal_sel].copy()
 
-# Lógica para filtrar Sábados a la tarde (Falsos Ausentes)
-df_vista['FECHA_DT'] = pd.to_datetime(df_vista['FECHA'], format='%d/%m/%Y', errors='coerce')
-es_sabado = df_vista['FECHA_DT'].dt.weekday == 5
-tarde_ausente_solo = (df_vista['MAÑANA'].str.upper().str.strip() == 'P') & (df_vista['TARDE'].str.upper().str.strip() == 'A')
-condicion_ausente = df_vista["SITUACION"].str.contains("AUSENTE", case=False, na=False)
-excluir_sabado_tarde = es_sabado & tarde_ausente_solo
-
-# Filtro ampliado para que tome "AUSENTE" y también "MEDIO PRESENTE"
-condicion_presencia = df_vista["SITUACION"].str.contains("AUSENTE|MEDIO", case=False, na=False)
-
-df_ausentes = df_vista[condicion_presencia].copy()
+df_ausentes = df_vista[df_vista["SITUACION"].str.contains("AUSENTE|MEDIO", case=False, na=False)].copy()
 df_ausentes["_ESTADO"] = df_ausentes.apply(lambda r: estado_fila(r, gestiones), axis=1)
 df_ausentes["_KEY"]    = df_ausentes.apply(clave, axis=1)
+
 titulo_vista = "Vista Global — Todas las Sucursales" if es_rrhh else f"Sucursal: {sucursal_sel}"
 st.markdown(f"### {titulo_vista}")
 
@@ -465,20 +469,16 @@ elif filtro_estado == "Tipificados":
     df_filtrado = df_filtrado[df_filtrado["_ESTADO"] == "RESUELTO"]
 
 # ── AGRUPAR POR EMPLEADO ─────────────────────────────────────────────────────
-# Orden de urgencia: VENCIDO > PENDIENTE > RESUELTO
 orden_map = {"VENCIDO": 0, "PENDIENTE": 1, "RESUELTO": 2}
 df_filtrado = df_filtrado.copy()
 df_filtrado["_ORDEN"] = df_filtrado["_ESTADO"].map(orden_map)
 
-# Estado peor del empleado (para ordenar el grupo)
 peor_estado = df_filtrado.groupby("LEGAJO")["_ORDEN"].min().reset_index().rename(columns={"_ORDEN": "_PEOR"})
 df_filtrado = df_filtrado.merge(peor_estado, on="LEGAJO", how="left")
 df_filtrado = df_filtrado.sort_values(["_PEOR", "SUCURSAL", "NOMBRE", "FECHA"]).reset_index(drop=True)
 
-# Contar días por legajo
 dias_por_legajo = df_filtrado.groupby("LEGAJO").size().to_dict()
 
-empleados_vistos = set()
 n_empleados = df_filtrado["LEGAJO"].nunique()
 st.markdown(f"**{n_empleados} empleados** · {len(df_filtrado)} registros")
 st.markdown("---")
@@ -490,29 +490,32 @@ else:
     grupos = df_filtrado.groupby(["LEGAJO", "NOMBRE", "SUCURSAL"], sort=False)
 
     for (legajo, nombre, sucursal), grupo in grupos:
-        dias_grupo = len(grupo)
-        # Estado peor del grupo
+        dias_grupo    = len(grupo)
         estados_grupo = grupo["_ESTADO"].tolist()
+
+        # Posición — tomamos la primera que aparezca en el grupo
+        posicion = str(grupo["POSICION"].values[0]).strip() if "POSICION" in grupo.columns else ""
+
         if "VENCIDO" in estados_grupo:
-            color_header = "#dc2626"
+            color_header   = "#dc2626"
             label_urgencia = "URGENTE" if not es_rrhh else "VENCIDO"
             bg_urgencia    = "#fee2e2"
             fg_urgencia    = "#991b1b"
         elif "PENDIENTE" in estados_grupo:
-            color_header = "#f59e0b"
+            color_header   = "#f59e0b"
             label_urgencia = "PENDIENTE"
             bg_urgencia    = "#fef3c7"
             fg_urgencia    = "#92400e"
         else:
-            color_header = "#10b981"
+            color_header   = "#10b981"
             label_urgencia = "TIPIFICADO"
             bg_urgencia    = "#d1fae5"
             fg_urgencia    = "#065f46"
 
         dias_txt = f"{dias_grupo} día{'s' if dias_grupo > 1 else ''} en falta"
         suc_txt  = f"  ·  📍 {sucursal}" if es_rrhh else ""
+        pos_txt  = f"  ·  🏷️ {posicion}" if posicion and posicion not in ("nan","") else ""
 
-        # Header del empleado
         col_b, col_c = st.columns([0.015, 0.985])
         with col_b:
             st.markdown(
@@ -520,9 +523,9 @@ else:
                 unsafe_allow_html=True
             )
         with col_c:
-            ch1, ch2 = st.columns([3, 1])
+            ch1, _ = st.columns([3, 1])
             with ch1:
-                st.markdown(f"**👤 {nombre.strip()}** &nbsp; Leg. {legajo}{suc_txt}")
+                st.markdown(f"**👤 {nombre.strip()}** &nbsp; Leg. {legajo}{suc_txt}{pos_txt}")
                 st.markdown(
                     f'<span style="background:{bg_urgencia};color:{fg_urgencia};'
                     f'padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;">'
@@ -530,29 +533,23 @@ else:
                     f'&nbsp;&nbsp;<span style="color:#888;font-size:13px;">📅 {dias_txt}</span>',
                     unsafe_allow_html=True
                 )
-            with ch2:
-                pass
 
         st.markdown("<div style='margin-left:2rem'>", unsafe_allow_html=True)
 
-        # Filas de días del empleado
         for _, row in grupo.iterrows():
             k = row["_KEY"]
             est_actual, gestion_actual = estado_gestion_fn(k, gestiones)
             plazo_str, dias_restantes  = calcular_plazo(str(row["FECHA"]))
 
             if est_actual == "RESUELTO":
-                icono = "✅"
-                tip_txt = gestion_actual.get("tipificacion","")
-                dia_badge = f'<span style="background:#d1fae5;color:#065f46;padding:1px 8px;border-radius:12px;font-size:11px;">{icono} {tip_txt}</span>'
+                tip_txt  = gestion_actual.get("tipificacion","")
+                dia_badge = f'<span style="background:#d1fae5;color:#065f46;padding:1px 8px;border-radius:12px;font-size:11px;">✅ {tip_txt}</span>'
             elif plazo_str == "VENCIDO":
-                icono = "🚨"
-                etiqueta = "URGENTE" if not es_rrhh else "VENCIDO"
-                dia_badge = f'<span style="background:#fee2e2;color:#991b1b;padding:1px 8px;border-radius:12px;font-size:11px;">{icono} {etiqueta}</span>'
+                etiqueta  = "URGENTE" if not es_rrhh else "VENCIDO"
+                dia_badge = f'<span style="background:#fee2e2;color:#991b1b;padding:1px 8px;border-radius:12px;font-size:11px;">🚨 {etiqueta}</span>'
             else:
-                icono = "⏳"
-                dr_txt = f"{dias_restantes}d restante{'s' if dias_restantes != 1 else ''}" if dias_restantes > 0 else "vence hoy"
-                dia_badge = f'<span style="background:#fef3c7;color:#92400e;padding:1px 8px;border-radius:12px;font-size:11px;">{icono} {dr_txt}</span>'
+                dr_txt    = f"{dias_restantes}d restante{'s' if dias_restantes != 1 else ''}" if dias_restantes > 0 else "vence hoy"
+                dia_badge = f'<span style="background:#fef3c7;color:#92400e;padding:1px 8px;border-radius:12px;font-size:11px;">⏳ {dr_txt}</span>'
 
             lic = str(row.get("LICENCIA","")).strip()
             lic_html = f'&nbsp;<span style="color:#999;font-size:12px;">Naaloo: {lic}</span>' if lic and lic not in ("nan","") else ""
@@ -582,27 +579,27 @@ if es_rrhh and not df_ausentes.empty:
         est, g = estado_gestion_fn(k, gestiones)
         plazo, _ = calcular_plazo(str(row["FECHA"]))
         rows_exp.append({
-            "FECHA":            row["FECHA"],
-            "LEGAJO":           row["LEGAJO"],
-            "NOMBRE":           row["NOMBRE"],
-            "SUCURSAL":         row["SUCURSAL"],
-            "MAÑANA":           fmt_fichada(row["MAÑANA"]),
-            "TARDE":            fmt_fichada(row["TARDE"]),
-            "LICENCIA_NAALOO":  row.get("LICENCIA",""),
-            "DIAS_EN_FALTA":    dias_por_legajo.get(row["LEGAJO"], 1),
-            "ESTADO":           est if est == "RESUELTO" else plazo,
-            "TIPIFICACION":     g.get("tipificacion",""),
-            "NAALOO_CARGADO":   g.get("naaloo",""),
-            "OBSERVACIONES":    g.get("observaciones",""),
-            "RESPONSABLE":      g.get("responsable",""),
-            "FECHA_GESTION":    g.get("fecha_gestion",""),
+            "FECHA":           row["FECHA"],
+            "LEGAJO":          row["LEGAJO"],
+            "SUCURSAL":        row["SUCURSAL"],
+            "NOMBRE":          row["NOMBRE"],
+            "POSICION":        row.get("POSICION",""),
+            "MAÑANA":          fmt_fichada(row["MAÑANA"]),
+            "TARDE":           fmt_fichada(row["TARDE"]),
+            "LICENCIA_NAALOO": row.get("LICENCIA",""),
+            "DIAS_EN_FALTA":   dias_por_legajo.get(row["LEGAJO"], 1),
+            "ESTADO":          est if est == "RESUELTO" else plazo,
+            "TIPIFICACION":    g.get("tipificacion",""),
+            "NAALOO_CARGADO":  g.get("naaloo",""),
+            "OBSERVACIONES":   g.get("observaciones",""),
+            "RESPONSABLE":     g.get("responsable",""),
+            "FECHA_GESTION":   g.get("fecha_gestion",""),
         })
 
     df_exp = pd.DataFrame(rows_exp)
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         df_exp.to_excel(writer, index=False, sheet_name="Ausencias")
-        # Resumen por sucursal en segunda hoja
         resumen = df_ausentes.groupby("SUCURSAL")["_ESTADO"].value_counts().unstack(fill_value=0)
         for cn in ["VENCIDO","PENDIENTE","RESUELTO"]:
             if cn not in resumen.columns:
