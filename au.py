@@ -656,7 +656,3 @@ if es_rrhh and not df_ausentes.empty:
         resumen_v = resumen_v[["VENCIDO","PENDIENTE","RESUELTO"]].reset_index()
         resumen_v.columns = ["Sucursal","🚨 Vencidos","⏳ Pendientes","✅ Tipificados"]
         st.dataframe(resumen_v, use_container_width=True, hide_index=True)
-                resumen_v[cn] = 0
-        resumen_v = resumen_v[["VENCIDO","PENDIENTE","RESUELTO"]].reset_index()
-        resumen_v.columns = ["Sucursal","🚨 Vencidos","⏳ Pendientes","✅ Tipificados"]
-        st.dataframe(resumen_v, use_container_width=True, hide_index=True)
