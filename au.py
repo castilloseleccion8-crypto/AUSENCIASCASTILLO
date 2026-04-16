@@ -186,6 +186,18 @@ def fmt_fichada(v):
     if v == "-": return "—"
     return v
 
+def es_falso_ausente(row):
+    """Sábado a la tarde con mañana presente = no es ausencia real."""
+    try:
+        fecha = datetime.strptime(str(row["FECHA"]).strip(), "%d/%m/%Y").date()
+        if fecha.weekday() != 5:  # 5 = sábado
+            return False
+        manana = str(row["MAÑANA"]).strip().upper()
+        tarde  = str(row["TARDE"]).strip().upper()
+        return manana == "P" and tarde == "A"
+    except Exception:
+        return False
+
 def calcular_plazo(fecha_str):
     try:
         fecha = datetime.strptime(str(fecha_str).strip(), "%d/%m/%Y").date()
@@ -352,6 +364,7 @@ if es_rrhh:
                 st.info("No hay datos cargados.")
             else:
                 df_adm = df_global[df_global["SITUACION"].str.contains("AUSENTE|MEDIO", case=False, na=False)].copy()
+                df_adm = df_adm[~df_adm.apply(es_falso_ausente, axis=1)]
                 df_adm["_ESTADO"] = df_adm.apply(lambda r: estado_fila(r, gestiones), axis=1)
                 df_adm["_KEY"]    = df_adm.apply(clave, axis=1)
 
@@ -443,6 +456,7 @@ sucursales_disponibles = sorted(df_global["SUCURSAL"].dropna().unique().tolist()
 df_vista = df_global.copy() if es_rrhh else df_global[df_global["SUCURSAL"] == sucursal_sel].copy()
 
 df_ausentes = df_vista[df_vista["SITUACION"].str.contains("AUSENTE|MEDIO", case=False, na=False)].copy()
+df_ausentes = df_ausentes[~df_ausentes.apply(es_falso_ausente, axis=1)]
 df_ausentes["_ESTADO"] = df_ausentes.apply(lambda r: estado_fila(r, gestiones), axis=1)
 df_ausentes["_KEY"]    = df_ausentes.apply(clave, axis=1)
 
@@ -638,6 +652,10 @@ if es_rrhh and not df_ausentes.empty:
         resumen_v = df_ausentes.groupby("SUCURSAL")["_ESTADO"].value_counts().unstack(fill_value=0)
         for cn in ["VENCIDO","PENDIENTE","RESUELTO"]:
             if cn not in resumen_v.columns:
+                resumen_v[cn] = 0
+        resumen_v = resumen_v[["VENCIDO","PENDIENTE","RESUELTO"]].reset_index()
+        resumen_v.columns = ["Sucursal","🚨 Vencidos","⏳ Pendientes","✅ Tipificados"]
+        st.dataframe(resumen_v, use_container_width=True, hide_index=True)
                 resumen_v[cn] = 0
         resumen_v = resumen_v[["VENCIDO","PENDIENTE","RESUELTO"]].reset_index()
         resumen_v.columns = ["Sucursal","🚨 Vencidos","⏳ Pendientes","✅ Tipificados"]
