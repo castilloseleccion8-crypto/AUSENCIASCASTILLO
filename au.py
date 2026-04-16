@@ -310,7 +310,25 @@ if es_rrhh:
         tab_subir, tab_limpiar = st.tabs(["📤 Subir nuevo reporte", "🗂️ Archivar casos"])
 
         with tab_subir:
-            st.markdown("Subí el Excel de tu script. **Las tipificaciones ya cargadas no se tocan.**")
+            # ── Borrar reporte actual ──
+            if not df_global.empty:
+                with st.container():
+                    st.markdown("**🗑️ Borrar reporte actual**")
+                    st.caption("Elimina todos los datos del reporte. Las tipificaciones guardadas NO se borran.")
+                    col_del, _ = st.columns([1, 3])
+                    with col_del:
+                        if st.button("🗑️ Borrar todo el reporte", key="btn_borrar_reporte"):
+                            with st.spinner("Borrando..."):
+                                ws_rep = get_sheet(HOJA_REPORTE)
+                                ws_rep.clear()
+                            st.success("✅ Reporte borrado. Ya podés subir el nuevo Excel.")
+                            st.cache_data.clear()
+                            st.rerun()
+                st.markdown("---")
+
+            # ── Subir nuevo Excel ──
+            st.markdown("**⬆️ Subir nuevo Excel**")
+            st.caption("Las tipificaciones ya cargadas NO se tocan.")
             archivo = st.file_uploader("Archivo .xlsx", type=["xlsx"], key="up_reporte")
             if archivo is not None:
                 try:
